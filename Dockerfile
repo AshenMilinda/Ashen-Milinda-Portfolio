@@ -1,5 +1,5 @@
-# Use PHP 8.2 Apache
-FROM php:8.2-apache
+# Use PHP 8.2 CLI for a simpler and more stable server
+FROM php:8.2-cli
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
@@ -13,9 +13,6 @@ RUN apt-get update && apt-get install -y \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-install gd pdo pdo_sqlite
 
-# Enable Apache mod_rewrite and fix MPM conflict
-RUN a2dismod mpm_event || true && a2enmod mpm_prefork && a2enmod rewrite
-
 # Set working directory
 WORKDIR /var/www/html
 
@@ -26,19 +23,20 @@ COPY . .
 RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
 RUN composer install --no-dev --optimize-autoloader
 
+# Create SQLite database if it doesn't exist
+RUN mkdir -p database && touch database/database.sqlite
+
 # Set permissions
-RUN chown -R www-data:www-data storage bootstrap/cache database
-RUN chmod -R 775 storage bootstrap/cache database
+RUN chmod -R 777 storage bootstrap/cache database
 
-# Update Apache config to point to /public
-ENV APACHE_DOCUMENT_ROOT /var/www/html/public
-RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/000-default.conf
-RUN sed -ri -e 's!/var/www/!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/apache2.conf /etc/apache2/conf-available/*.conf
-
-# Expose port 80
+# Expose the port (Railway uses $PORT environment variable)
 EXPOSE 80
 
-# Run migrations, seed database, and start Apache
+# Build command to prepare the app
+RUN php artisan key:generate --show || true
+
+# Start command: Migrate, Seed and Start the built-in PHP server
+# Note: We use 0.0.0.0 to allow external access and the $PORT variable
 CMD php artisan migrate --force && \
     php artisan db:seed --force && \
-    apache2-foreground
+    php -S 0.0.0.0:80 -t public
