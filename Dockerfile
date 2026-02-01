@@ -36,7 +36,7 @@ EXPOSE 80
 RUN php artisan key:generate --show || true
 
 # Start command: Migrate, Seed and Start the built-in PHP server
-# Note: We use 0.0.0.0 to allow external access and the $PORT variable
+# Note: We use the $PORT environment variable provided by Railway
 CMD php artisan migrate --force && \
     php artisan db:seed --force && \
-    php -S 0.0.0.0:80 -t public
+    php -S 0.0.0.0:${PORT:-80} -t public
